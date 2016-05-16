@@ -13,6 +13,8 @@ class PlaylistWindow;
 class QDrawnPlaylist;
 class QThread;
 class PlaylistSearcher;
+class EmptyTab;
+
 class PlaylistWindow : public QDockWidget
 {
     Q_OBJECT
@@ -98,7 +100,21 @@ private:
     DisplayParser displayParser;
     bool showSearch;
 
-    QHash<QUuid, QDrawnPlaylist*> widgets;
+    QHash<QUuid, QDrawnPlaylist*> listWidgets;
+    QHash<QUuid, EmptyTab*> tabWidgets;
+};
+
+
+class EmptyTab : public QWidget {
+    Q_OBJECT
+public:
+    explicit EmptyTab(QWidget *owner = NULL) : QWidget(owner), partner_(NULL) {}
+    void setPartner(QDrawnPlaylist *partner) { partner_ = partner; }
+    QDrawnPlaylist* partner() { return partner_; }
+
+    QSize sizeHint() { return QSize(0,0); }
+private:
+    QDrawnPlaylist *partner_;
 };
 
 #endif // PLAYLISTWINDOW_H

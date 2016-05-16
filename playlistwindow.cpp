@@ -9,6 +9,7 @@
 #include <QMenu>
 #include <QThread>
 
+
 PlaylistWindow::PlaylistWindow(QWidget *parent) :
     QDockWidget(parent),
     ui(new Ui::PlaylistWindow),
@@ -34,8 +35,9 @@ PlaylistWindow::~PlaylistWindow()
 
 void PlaylistWindow::setCurrentPlaylist(QUuid what)
 {
-    if (widgets.contains(what)) {
-        ui->tabWidget->setCurrentWidget(widgets[what]);
+    if (tabWidgets.contains(what)) {
+        ui->tabWidget->setCurrentWidget(tabWidgets[what]);
+        ui->tabStack->setCurrentWidget(listWidgets[what]);
         currentPlaylist = what;
     }
     updateCurrentPlaylist();
@@ -43,8 +45,8 @@ void PlaylistWindow::setCurrentPlaylist(QUuid what)
 
 void PlaylistWindow::clearPlaylist(QUuid what)
 {
-    if (widgets.contains(what))
-        widgets[what]->removeAll();
+    if (listWidgets.contains(what))
+        listWidgets[what]->removeAll();
 }
 
 QPair<QUuid, QUuid> PlaylistWindow::addToCurrentPlaylist(QList<QUrl> what)
@@ -63,8 +65,9 @@ QPair<QUuid, QUuid> PlaylistWindow::urlToQuickPlaylist(QUrl what)
 {
     auto pl = PlaylistCollection::getSingleton()->playlistOf(QUuid());
     pl->clear();
-    widgets[QUuid()]->clear();
-    ui->tabWidget->setCurrentWidget(widgets[QUuid()]);
+    listWidgets[QUuid()]->clear();
+    ui->tabWidget->setCurrentWidget(tabWidgets[QUuid()]);
+    ui->tabStack->setCurrentWidget(listWidgets[QUuid()]);
     return addToCurrentPlaylist(QList<QUrl>() << what);
 }
 
@@ -130,7 +133,8 @@ QVariantList PlaylistWindow::tabsToVList() const
 {
     QVariantList qvl;
     for (int i = 0; i < ui->tabWidget->count(); i++) {
-        auto widget = reinterpret_cast<QDrawnPlaylist *>(ui->tabWidget->widget(i));
+        auto tab = reinterpret_cast<EmptyTab *>(ui->tabWidget->widget(i));
+        auto widget = tab->partner();
         qvl.append(widget->toVMap());
     }
     return qvl;
@@ -139,17 +143,26 @@ QVariantList PlaylistWindow::tabsToVList() const
 void PlaylistWindow::tabsFromVList(const QVariantList &qvl)
 {
     ui->tabWidget->clear();
-    widgets.clear();
+    while (ui->tabStack->count()) ui->tabStack->removeWidget(ui->tabStack->widget(0));
+    listWidgets.clear();
+    tabWidgets.clear();
     for (const QVariant &v : qvl) {
         auto qdp = new QDrawnPlaylist();
         qdp->setDisplayParser(&displayParser);
         qdp->fromVMap(v.toMap());
         connect(qdp, &QDrawnPlaylist::itemDesired, this, &PlaylistWindow::itemDesired);
         auto pl = PlaylistCollection::getSingleton()->playlistOf(qdp->uuid());
-        ui->tabWidget->addTab(qdp, pl->title());
-        widgets.insert(pl->uuid(), qdp);
+        listWidgets.insert(pl->uuid(), qdp);
+
+        EmptyTab *tab = new EmptyTab(this);
+        tabWidgets.insert(pl->uuid(), tab);
+        tab->setPartner(qdp);
+
+        ui->tabStack->addWidget(qdp);
+        ui->tabWidget->addTab(tab, pl->title());
+
     }
-    if (widgets.count() < 1)
+    if (tabWidgets.count() < 1)
         addNewTab(QUuid(), tr("Quick Playlist"));
 }
 
@@ -212,7 +225,8 @@ void PlaylistWindow::connectSignalsToSlots()
 
 QDrawnPlaylist *PlaylistWindow::currentPlaylistWidget()
 {
-    return reinterpret_cast<QDrawnPlaylist *>(ui->tabWidget->currentWidget());
+    auto tab = reinterpret_cast<EmptyTab *>(ui->tabWidget->currentWidget());
+    return tab ? tab->partner() : NULL;
 }
 
 void PlaylistWindow::updateCurrentPlaylist()
@@ -221,13 +235,15 @@ void PlaylistWindow::updateCurrentPlaylist()
     if (!qdp)
         return;
     currentPlaylist = qdp->uuid();
-    setTabOrder(ui->tabWidget->focusProxy(), qdp);
-    setTabOrder(qdp, ui->searchField);
+    ui->tabStack->setCurrentWidget(listWidgets[currentPlaylist]);
+    ui->tabStack->setFocusProxy(listWidgets[currentPlaylist]);
+    setTabOrder(ui->tabWidget, ui->tabStack->focusProxy());
+    setTabOrder(ui->tabStack->focusProxy(), ui->searchField);
 }
 
 void PlaylistWindow::setPlaylistFilters(QString filterText)
 {
-    for (auto widget : widgets) {
+    for (auto widget : listWidgets) {
         widget->setFilter(filterText);
     }
 }
@@ -235,20 +251,26 @@ void PlaylistWindow::setPlaylistFilters(QString filterText)
 void PlaylistWindow::addNewTab(QUuid playlist, QString title)
 {
     auto qdp = new QDrawnPlaylist();
+    listWidgets.insert(playlist, qdp);
+    EmptyTab *tab = new EmptyTab(this);
+    tabWidgets.insert(playlist, tab);
+    tab->setPartner(qdp);
+
     qdp->setDisplayParser(&displayParser);
     qdp->setUuid(playlist);
     connect(qdp, &QDrawnPlaylist::itemDesired, this, &PlaylistWindow::itemDesired);
-    widgets.insert(playlist, qdp);
-    ui->tabWidget->addTab(qdp, title);
-    ui->tabWidget->setCurrentWidget(qdp);
+
+    ui->tabStack->addWidget(qdp);
+    ui->tabWidget->addTab(tab, title);
+    ui->tabWidget->setCurrentWidget(tab);
 }
 
 void PlaylistWindow::changePlaylistSelection( QUrl itemUrl, QUuid playlistUuid, QUuid itemUuid)
 {
     (void)itemUrl;
-    if (!widgets.contains(playlistUuid))
+    if (!tabWidgets.contains(playlistUuid))
         return;
-    auto qdp = widgets[playlistUuid];
+    auto qdp = listWidgets[playlistUuid];
     auto pl = PlaylistCollection::getSingleton()->playlistOf(playlistUuid);
     if (!itemUuid.isNull() && pl->queueFirst() == itemUuid)
         pl->queueTakeFirst();
@@ -266,7 +288,7 @@ void PlaylistWindow::addSimplePlaylist(QStringList data)
 void PlaylistWindow::setDisplayFormatSpecifier(QString fmt)
 {
     displayParser.takeFormatString(fmt);
-    ui->tabWidget->currentWidget()->update();
+    ui->tabStack->currentWidget()->update();
 }
 
 void PlaylistWindow::newTab()
@@ -392,15 +414,18 @@ void PlaylistWindow::self_visibilityChanged()
 void PlaylistWindow::on_tabWidget_tabCloseRequested(int index)
 {
     int current = ui->tabWidget->currentIndex();
-    auto qdp = reinterpret_cast<QDrawnPlaylist *>(ui->tabWidget->widget(index));
+    auto tab = reinterpret_cast<EmptyTab *>(ui->tabWidget->widget(index));
+    auto qdp = tab->partner();
     if (!qdp)
         return;
     if (qdp->uuid().isNull()) {
         qdp->removeAll();
     } else {
         PlaylistCollection::getSingleton()->removePlaylist(qdp->uuid());
-        widgets.remove(qdp->uuid());
+        tabWidgets.remove(qdp->uuid());
+        listWidgets.remove(qdp->uuid());
         ui->tabWidget->removeTab(index);
+        ui->tabStack->removeWidget(qdp);
     }
     if (current == index)
         updateCurrentPlaylist();
@@ -408,7 +433,8 @@ void PlaylistWindow::on_tabWidget_tabCloseRequested(int index)
 
 void PlaylistWindow::on_tabWidget_tabBarDoubleClicked(int index)
 {
-    auto widget = reinterpret_cast<QDrawnPlaylist *>(ui->tabWidget->widget(index));
+    auto tab = reinterpret_cast<EmptyTab *>(ui->tabWidget->widget(index));
+    auto widget = tab->partner();
     QUuid tabUuid = widget->uuid();
     if (tabUuid.isNull())
         return;

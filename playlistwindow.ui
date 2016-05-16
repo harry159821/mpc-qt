@@ -17,19 +17,35 @@
    <string>P&amp;laylist</string>
   </property>
   <widget class="QWidget" name="contents">
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QVBoxLayout" name="verticalLayout_2">
     <item>
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="contextMenuPolicy">
-       <enum>Qt::CustomContextMenu</enum>
+     <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1">
+      <property name="spacing">
+       <number>0</number>
       </property>
-      <property name="tabsClosable">
-       <bool>true</bool>
+      <property name="bottomMargin">
+       <number>0</number>
       </property>
-      <property name="movable">
-       <bool>true</bool>
-      </property>
-     </widget>
+      <item>
+       <widget class="QTabWidget" name="tabWidget">
+        <property name="contextMenuPolicy">
+         <enum>Qt::CustomContextMenu</enum>
+        </property>
+        <property name="documentMode">
+         <bool>true</bool>
+        </property>
+        <property name="tabsClosable">
+         <bool>true</bool>
+        </property>
+        <property name="movable">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QStackedWidget" name="tabStack"/>
+      </item>
+     </layout>
     </item>
     <item>
      <widget class="QWidget" name="searchHost" native="true">
@@ -132,6 +148,17 @@
    </layout>
   </widget>
  </widget>
+ <tabstops>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>tabStack</tabstop>
+  <tabstop>searchField</tabstop>
+  <tabstop>visibleToQueue</tabstop>
+  <tabstop>newTab</tabstop>
+  <tabstop>closeTab</tabstop>
+  <tabstop>duplicateTab</tabstop>
+  <tabstop>importList</tabstop>
+  <tabstop>exportList</tabstop>
+ </tabstops>
  <resources>
   <include location="res.qrc"/>
  </resources>
