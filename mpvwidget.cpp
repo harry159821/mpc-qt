@@ -685,6 +685,13 @@ void MpvController::create(bool video, bool audio)
     if (!mpv)
         throw std::runtime_error("could not create mpv context");
 
+#ifdef Q_OS_LINUX
+    setOptionVariant("input-ipc-server", QVariant("/tmp/cmdrkotori.mpc-qt.mpv"));
+#endif
+#ifdef Q_OS_WIN
+    setOptionVariant("input-ipc-server", QVariant("\\\\.\\pipe\\cmdrkotori.mpc-qt.mpv"));
+#endif
+
     if (mpv_initialize(mpv) < 0)
         throw std::runtime_error("could not initialize mpv context");
 
