@@ -7,7 +7,7 @@
 *.la
 *.lai
 *.so
-*.dll
+# *.dll
 *.dylib
 
 # Qt-es
@@ -41,7 +41,7 @@ Makefile*
 *.desktop
 
 # qmake
-/release/
+# /release/
 /debug/
 /object_script.*.Debug
 /object_script.*.Release
